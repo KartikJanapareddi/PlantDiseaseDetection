@@ -9,7 +9,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Custom UI styles
+# Custom styles for better UI
 st.markdown("""
     <style>
         .main {
@@ -33,31 +33,36 @@ st.markdown("""
 
 # App Header
 st.title("🍃 Plant Disease Detector")
-st.subheader("Upload a leaf image to detect disease and get treatment advice")
+st.subheader("Upload a leaf image to detect plant disease and receive remedies 🌱")
 
-# Upload file section
+# File uploader with type restriction
 uploaded_file = st.file_uploader("📤 Upload Leaf Image (JPG, JPEG, PNG)", type=["jpg", "jpeg", "png"])
 
+# File upload check
 if uploaded_file is not None:
     try:
-        image = Image.open(uploaded_file)
-        st.image(image, caption="📷 Uploaded Leaf", use_column_width=True)
+        # Extra safety: Ensure filename has valid extension
+        if not uploaded_file.name.lower().endswith(('.jpg', '.jpeg', '.png')):
+            st.error("🚫 Unsupported file type. Please upload a JPG or PNG image.")
+        else:
+            image = Image.open(uploaded_file)
+            st.image(image, caption="📷 Uploaded Leaf", use_column_width=True)
 
-        if st.button("🔍 Diagnose Now"):
-            with st.spinner("Analyzing leaf image... 🌿"):
-                image_bytes = uploaded_file.getvalue()
-                result = analyze_plant_disease(image_bytes)
-
-                st.success("✅ Diagnosis Complete!")
-                st.markdown("### 🩺 **Diagnosis & Remedies**")
-                st.markdown(result)
+            # Diagnosis button
+            if st.button("🔍 Diagnose Now"):
+                with st.spinner("Analyzing leaf image... 🌿"):
+                    image_bytes = uploaded_file.getvalue()
+                    result = analyze_plant_disease(image_bytes)
+                    st.success("✅ Diagnosis Complete!")
+                    st.markdown("### 🩺 Disease Report & Remedies")
+                    st.markdown(result)
 
     except Exception as e:
-        st.error("⚠️ Error processing image. Make sure it's a valid image file.")
+        st.error("⚠️ Error processing the image. Please upload a valid image.")
         st.exception(e)
 else:
-    st.warning("📸 Please upload a clear leaf image to begin diagnosis.")
+    st.info("📸 Please upload a clear leaf image to begin diagnosis.")
 
 # Footer
 st.markdown("---")
-st.markdown("<center><small>🌱 Built with love for growers and green thumbs</small></center>", unsafe_allow_html=True)
+st.markdown("<center><small>🌱 Built for plant lovers, powered by green intelligence</small></center>", unsafe_allow_html=True)
