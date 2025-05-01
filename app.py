@@ -1,107 +1,93 @@
 import streamlit as st
 from PIL import Image, UnidentifiedImageError
-import google.generativeai as genai
-from dotenv import load_dotenv
-import os
+import mimetypes
 import io
+import os
+from dotenv import load_dotenv
+import google.generativeai as genai
 
-# Load environment variables
+# Load Gemini API key
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
-
-# Configure Gemini API
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel("gemini-2.0-flash")
 
-# Supported formats
-SUPPORTED_FORMATS = ["jpg", "jpeg", "png", "bmp", "tiff", "gif"]
+# Supported MIME types for Gemini 2.0 Flash
+GEMINI_MIME_TYPES = {
+    # Images
+    "image/png", "image/jpeg", "image/webp",
+    # Audio
+    "audio/flac", "audio/mp3", "audio/m4a", "audio/mpeg",
+    # Video
+    "video/x-flv", "video/quicktime", "video/mpeg", "video/mpegps", "video/mpg",
+    "video/mp4", "video/webm", "video/wmv", "video/3gpp",
+    # Documents
+    "application/pdf", "text/plain"
+}
 
-# Streamlit page config
+def get_mime_type(file):
+    mime_type, _ = mimetypes.guess_type(file.name)
+    # Fallback for some audio types
+    if not mime_type and file.name.lower().endswith(".m4a"):
+        mime_type = "audio/m4a"
+    return mime_type
+
+def file_to_blob(file, mime_type):
+    # For images, ensure correct format
+    if mime_type and mime_type.startswith("image/"):
+        try:
+            image = Image.open(file)
+            buf = io.BytesIO()
+            image.save(buf, format="PNG")
+            return genai.types.Blob(content=buf.getvalue(), mime_type="image/png")
+        except UnidentifiedImageError:
+            return None
+    else:
+        # For other types, just use raw bytes
+        return genai.types.Blob(content=file.read(), mime_type=mime_type)
+
 st.set_page_config(
-    page_title="🌱 Plant Disease Detector",
-    page_icon="🌿",
-    layout="centered",
-    initial_sidebar_state="expanded"
+    page_title="🌐 Gemini Universal File Analyzer",
+    page_icon="✨",
+    layout="centered"
 )
 
-# Sidebar with instructions
-with st.sidebar:
-    st.header("How to Use")
-    st.markdown("""
-    1. **Upload** a clear image of a plant leaf (formats: JPG, PNG, BMP, TIFF, GIF).
-    2. **Click 'Analyze'** to detect diseases and get suggestions.
-    3. **Download** the diagnosis report if needed.
-    """)
-    st.markdown("---")
-    st.info("For best results, use clear, close-up images of single leaves.")
+st.title("🌐 Gemini Universal File Analyzer")
+st.write("Upload any file supported by Gemini 2.0 Flash (images, audio, video, PDF, text) for intelligent analysis and suggestions.")
 
-st.title("🌱 Plant Disease Detector")
-st.write("Upload a plant leaf image. The AI will detect possible diseases and suggest remedies.")
-
-# File uploader
 uploaded_file = st.file_uploader(
-    "Choose an image file (JPG, PNG, BMP, TIFF, GIF)", 
-    type=SUPPORTED_FORMATS,
+    "Upload a file (image, audio, video, PDF, or text)", 
+    type=None,  # Accept any file type
     accept_multiple_files=False
 )
 
-def preprocess_image(image):
-    # Convert to RGB and resize if too large
-    image = image.convert("RGB")
-    max_size = (1024, 1024)
-    if image.size[0] > max_size[0] or image.size[1] > max_size[1]:
-        image.thumbnail(max_size)
-    return image
-
-def generate_report(text):
-    return io.BytesIO(text.encode("utf-8"))
-
 if uploaded_file:
-    try:
-        image = Image.open(uploaded_file)
-        image = preprocess_image(image)
-        st.image(image, caption="Uploaded Leaf Image", use_column_width=True)
-        st.info("Click 'Analyze' to detect diseases and get suggestions.")
+    mime_type = get_mime_type(uploaded_file)
+    st.write(f"**Detected file type:** `{mime_type or 'Unknown'}`")
 
-        if st.button("🔎 Analyze"):
-            with st.spinner("Analyzing the image... Please wait."):
-                prompt = (
-                    "You are a plant pathology expert. Analyze the uploaded leaf image for any signs of disease. "
-                    "If a disease is detected, specify its name, describe the symptoms, and provide actionable suggestions for treatment and prevention. "
-                    "If the leaf appears healthy, state that as well."
-                )
-                img_byte_arr = io.BytesIO()
-                image.save(img_byte_arr, format='PNG')
-                img_bytes = img_byte_arr.getvalue()
-
-                try:
-                    # Show progress bar
-                    progress = st.progress(0)
-                    response = model.generate_content(
-                        [prompt, genai.types.Blob(content=img_bytes, mime_type="image/png")]
-                    )
-                    progress.progress(100)
-                    st.success("Analysis Complete!")
-                    st.markdown(f"**Diagnosis & Suggestions:**\n\n{response.text}")
-
-                    # Downloadable report
-                    report_bytes = generate_report(response.text)
-                    st.download_button(
-                        label="💾 Download Diagnosis Report",
-                        data=report_bytes,
-                        file_name="plant_disease_report.txt",
-                        mime="text/plain"
-                    )
-                except Exception as e:
-                    st.error(f"Error analyzing image: {e}")
-
-        st.button("🔄 Reset", on_click=lambda: st.experimental_rerun())
-    except UnidentifiedImageError:
-        st.error("The uploaded file is not a valid image or is corrupted. Please upload a supported image file.")
-    except Exception as e:
-        st.error(f"Unexpected error: {e}")
+    if mime_type not in GEMINI_MIME_TYPES:
+        st.error("This file type is not supported by Gemini 2.0 Flash. Please upload an image (PNG/JPEG/WebP), audio (FLAC/MP3/MPA/MPEG), video (FLV/MOV/MPEG/MP4/WEBM/WMV/3GPP), PDF, or plain text file.")
+    else:
+        blob = file_to_blob(uploaded_file, mime_type)
+        if blob is None:
+            st.error("Could not process the uploaded file. Please ensure it is valid and try again.")
+        else:
+            prompt = (
+                "You are an expert assistant. Analyze the uploaded file and provide a detailed summary, "
+                "identify any relevant information, and give actionable suggestions if applicable. "
+                "If the file is an image of a plant leaf, diagnose possible diseases and suggest remedies. "
+                "If it's a document, summarize its contents. For audio/video, describe the content."
+            )
+            if st.button("🔎 Analyze"):
+                with st.spinner("Analyzing the file..."):
+                    try:
+                        response = model.generate_content([prompt, blob])
+                        st.success("Analysis Complete!")
+                        st.markdown(f"**Result:**\n\n{response.text}")
+                    except Exception as e:
+                        st.error(f"Error analyzing file: {e}")
 else:
-    st.info("Please upload a clear image of a plant leaf to begin.")
+    st.info("Please upload a file to begin.")
 
 st.markdown("---")
-st.caption("Built with Gardeners & Plant growers")
+st.caption("Powered by Gemini 2.0 Flash | Built with Streamlit")
