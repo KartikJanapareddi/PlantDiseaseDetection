@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image
 from gemini_api import analyze_plant_disease
+from pathlib import Path
 
 # Configure Streamlit page
 st.set_page_config(
@@ -9,7 +10,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Custom styles for better UI
+# Custom styles
 st.markdown("""
     <style>
         .main {
@@ -35,20 +36,19 @@ st.markdown("""
 st.title("🍃 Plant Disease Detector")
 st.subheader("Upload a leaf image to detect plant disease and receive remedies 🌱")
 
-# File uploader with type restriction
+# File uploader
 uploaded_file = st.file_uploader("📤 Upload Leaf Image (JPG, JPEG, PNG)", type=["jpg", "jpeg", "png"])
 
-# File upload check
+# Safely handle file upload
 if uploaded_file is not None:
     try:
-        # Extra safety: Ensure filename has valid extension
-        if not uploaded_file.name.lower().endswith(('.jpg', '.jpeg', '.png')):
+        file_ext = Path(uploaded_file.name).suffix.lower()
+        if file_ext not in [".jpg", ".jpeg", ".png"]:
             st.error("🚫 Unsupported file type. Please upload a JPG or PNG image.")
         else:
             image = Image.open(uploaded_file)
             st.image(image, caption="📷 Uploaded Leaf", use_column_width=True)
 
-            # Diagnosis button
             if st.button("🔍 Diagnose Now"):
                 with st.spinner("Analyzing leaf image... 🌿"):
                     image_bytes = uploaded_file.getvalue()
@@ -58,10 +58,10 @@ if uploaded_file is not None:
                     st.markdown(result)
 
     except Exception as e:
-        st.error("⚠️ Error processing the image. Please upload a valid image.")
+        st.error("⚠️ Error processing the image. Please upload a valid image file.")
         st.exception(e)
 else:
-    st.info("📸 Please upload a clear leaf image to begin diagnosis.")
+    st.info("📸 Please upload a leaf image to begin diagnosis.")
 
 # Footer
 st.markdown("---")
